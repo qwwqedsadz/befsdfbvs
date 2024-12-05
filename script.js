@@ -1,50 +1,50 @@
-function generateRandomInvites(count) {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const invites = [];
-
-  for (let i = 0; i < count; i++) {
-    let code = '';
-    for (let j = 0; j < 7; j++) {
-      code += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-    invites.push(`discord.gg/${code}`);
-  }
-
-  return invites;
-}
-
-async function checkInvite(inviteCode) {
-  try {
-    const response = await fetch(`https://discord.com/api/v9/invites/${inviteCode}`);
-    if (!response.ok) {
-      throw new Error(`Invalid: ${inviteCode}`);
-    }
-    const data = await response.json();
-    return { valid: true, code: inviteCode, data };
-  } catch (error) {
-    return { valid: false, code: inviteCode, error: error.message };
-  }
-}
-
-async function processInvites() {
+function generateAndCheckInvites() {
   const inviteInfoDiv = document.getElementById("inviteInfo");
-  inviteInfoDiv.innerHTML = '<p>Processing invites...</p>';
+  inviteInfoDiv.innerHTML = "Generating and checking invites...";
 
-  const invites = generateRandomInvites(1000);
-  const results = await Promise.all(invites.map(invite => checkInvite(invite.split('/').pop())));
+  // Fetch random words from the API
+  fetch('https://random-word-api.herokuapp.com/word?number=100&length=3,5')
+    .then(response => response.json())
+    .then(words => {
+      const invites = words.map(word => `discord.gg/${word}`);
+      let validCount = 0;
 
-  const validInvites = results.filter(result => result.valid);
-  const invalidInvites = results.filter(result => !result.valid);
+      inviteInfoDiv.innerHTML = ""; // Clear previous info
+      const resultsDiv = document.createElement("div");
+      inviteInfoDiv.appendChild(resultsDiv);
 
-  inviteInfoDiv.innerHTML = `
-    <h2>Results:</h2>
-    <p><strong>Valid Invites:</strong> ${validInvites.length}</p>
-    <ul>
-      ${validInvites.map(invite => `<li>${invite.code}</li>`).join('')}
-    </ul>
-    <p><strong>Invalid Invites:</strong> ${invalidInvites.length}</p>
-    <ul>
-      ${invalidInvites.map(invite => `<li>${invite.code}</li>`).join('')}
-    </ul>
-  `;
+      invites.forEach((invite, index) => {
+        const inviteCode = invite.split('/').pop();
+
+        // Validate each invite
+        fetch(`https://discord.com/api/v9/invites/${inviteCode}`)
+          .then(response => {
+            if (!response.ok) throw new Error("Invalid invite");
+            return response.json();
+          })
+          .then(data => {
+            validCount++;
+            const result = document.createElement("div");
+            result.innerHTML = `<b>Valid Invite:</b> ${invite} - <i>${data.guild?.name || "Unknown Server"}</i>`;
+            resultsDiv.appendChild(result);
+          })
+          .catch(() => {
+            const result = document.createElement("div");
+            result.innerHTML = `<b>Invalid Invite:</b> ${invite}`;
+            resultsDiv.appendChild(result);
+          })
+          .finally(() => {
+            // Display completion status
+            if (index === invites.length - 1) {
+              const summary = document.createElement("p");
+              summary.innerHTML = `<b>Checked ${invites.length} invites. Found ${validCount} valid invites.</b>`;
+              inviteInfoDiv.appendChild(summary);
+            }
+          });
+      });
+    })
+    .catch(error => {
+      console.error("Error fetching random words:", error);
+      inviteInfoDiv.innerText = "Failed to fetch random words. Please try again.";
+    });
 }
